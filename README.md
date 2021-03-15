@@ -50,10 +50,10 @@ Usage of dsieve.go
         Output file path (default "", no output file)
 ```
 
-## Tesing
-Generate test data using `generate-test.py`  
+## Url generate
+Generate test data using `generate-urls.py`.
 ```
-python3 generate-test.py 10000 > urls-10000.txt
+python3 generate-urls.py 10000 > urls-10000.txt
 ```
 
 
