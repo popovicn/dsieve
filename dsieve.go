@@ -6,86 +6,137 @@ import (
     "fmt"
     "net/url"
     "os"
+    "strconv"
     "strings"
-    "sync"
 )
 
-var inputFilePath *string
-var filterLevel *int
-var outputFilePath *string
-var extractMode *bool
-var wg sync.WaitGroup
-var outputMutex sync.Mutex
 
+var inputUrl *string
+var inputFilePath *string
+var filterLevel *string
+var outputFilePath *string
+
+
+func fail(text string) {
+    fmt.Println(text)
+    os.Exit(1)
+}
 
 func check(err error) {
     if err != nil {
-        fmt.Println(err.Error())
-        os.Exit(1)
+        fail(err.Error())
     }
 }
 
-func writeResultLine(line string) {
-    outputMutex.Lock()
-    defer outputMutex.Unlock()
-    file, _ := os.OpenFile(*outputFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-    defer file.Close()
-    writer := bufio.NewWriter(file)
-    _, _ = fmt.Fprintln(writer, line)
-    _ = writer.Flush()
+func parseFilter(filter string) (int,int) {
+    if filter == "" {
+        return -1, -1
+    }
+    vMin := -1
+    vMax := -1
+    var err error
+    minMax := strings.Split(filter, ":")
+    if len(minMax) == 1 {
+        vMin, err = strconv.Atoi(minMax[0])
+        vMax = vMin + 1
+        check(err)
+    } else if len(minMax) == 2 {
+        if minMax[0] != "" {
+            vMin, err = strconv.Atoi(minMax[0])
+            check(err)
+        }
+        if minMax[1] != "" {
+            vMax, err = strconv.Atoi(minMax[1])
+            check(err)
+        }
+    } else {
+        fail("Invalid filter value: " + filter)
+    }
+    return vMin, vMax
 }
 
-func parseUrl(rawUrl string) {
-    defer wg.Done()
+func writeResults(domains *[]string) {
+    _, err := os.Create(*outputFilePath)
+    check(err)
+
+    if len(*domains) > 0 {
+        file, _ := os.OpenFile(*outputFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+        defer file.Close()
+        writer := bufio.NewWriter(file)
+        for _, domain := range *domains {
+            _, _ = fmt.Fprintln(writer, domain)
+        }
+        _ = writer.Flush()
+    }
+}
+
+func parseUrl(rawUrl string, lMin, lMax int) []string {
+    domains := make([]string, 0)
     if !strings.HasPrefix(rawUrl, "http") {
         rawUrl = "http://" + rawUrl
     }
-    url, err := url.Parse(rawUrl)
+    u, err := url.Parse(rawUrl)
     if err != nil {
-        return
+        return domains
     }
 
-    if strings.Count(url.Host, ".") == *filterLevel- 1 {
-        fmt.Println(url.Host)
-        if *outputFilePath  != "" {
-            writeResultLine(url.Host)
-        }
-    } else if *extractMode && strings.Count(url.Host, ".") > *filterLevel- 1 {
-        dTokens := strings.Split(url.Host, ".")
-
-        subdomain := strings.Join(dTokens[len(dTokens)-*filterLevel:], ".")
-        fmt.Println(subdomain)
-        if *outputFilePath  != "" {
-            writeResultLine(subdomain)
-        }
+    domainLevels := strings.Split(u.Host, ".")
+    if lMax == -1 {
+        lMax = len(domainLevels)
     }
+    for i:=lMax-1; i>0 && i >= lMin; i-- {
+        domain := strings.Join(domainLevels[len(domainLevels)-i:], ".")
+        domains = append(domains, domain)
+    }
+    return domains
 }
 
 func main(){
-    inputFilePath = flag.String("i", "","Input file path (required)")
-    filterLevel = flag.Int("fl", 3,"Filter domain level, 1 being TLD")
-    extractMode = flag.Bool("e", false, "Extract level domains from subdomains")
-    outputFilePath = flag.String("o", "","Output file path (default \"\", no output file)")
-
+    inputUrl = flag.String("i", "","Input url or domain")
+    inputFilePath = flag.String("if", "", "Input file path, one url/domain per line.")
+    filterLevel = flag.String("f", "","Filter domain level. " +
+        "Use python slice notation to select range. \nExample input: foo.bar.baz.tld \n" +
+        "  \033[3m-f 3  \033[0m    bar.baz.tld \n" +
+        "  \033[3m-f 3: \033[0m    bar.baz.tld, foo.bar.baz.tld\n" +
+        "  \033[3m-f 2:4\033[0m    baz.tld, bar.baz.tld\n" +
+        "  \033[3m-f :3 \033[0m    tld, baz.tld")
+    outputFilePath = flag.String("o", "","Output file path, optional")
     flag.Parse()
-    if *inputFilePath == "" {
+
+    inputUrls := make([]string, 0)
+    if *inputUrl != "" {
+        inputUrls = append(inputUrls, *inputUrl)
+    }
+    if *inputFilePath != "" {
+        inputFile, err := os.Open(*inputFilePath)
+        check(err)
+        defer inputFile.Close()
+        scanner := bufio.NewScanner(inputFile)
+        for scanner.Scan() {
+            inputUrls = append(inputUrls, scanner.Text())
+        }
+    }
+
+    if len(inputUrls) == 0 {
         flag.PrintDefaults()
-        fmt.Print("\nError: Input file path [-i] not provided\n")
+        fmt.Print("\nError: No input.\n")
         os.Exit(1)
     }
 
-    if *outputFilePath != "" {
-        _, err := os.Create(*outputFilePath)
-        check(err)
+    lMin, lMax := parseFilter(*filterLevel)
+    domainMap := make(map[string]bool)
+    domains := make([]string, 0)
+    for _, inputUrl := range inputUrls {
+        for _, domain := range parseUrl(inputUrl, lMin, lMax) {
+            if _, dup := domainMap[domain]; !dup {
+                fmt.Println(domain)
+                domainMap[domain] = true
+                domains = append(domains, domain)
+            }
+        }
     }
 
-    inputFile, err := os.Open(*inputFilePath)
-    check(err)
-    defer inputFile.Close()
-    scanner := bufio.NewScanner(inputFile)
-    for scanner.Scan() {
-        wg.Add(1)
-        parseUrl(scanner.Text())
+    if *outputFilePath != "" && len(domains) > 0 {
+        writeResults(&domains)
     }
-    wg.Wait()
 }

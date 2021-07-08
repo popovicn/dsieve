@@ -1,59 +1,44 @@
 dsieve
 ------
-Take a list of urls and filter or extract domains by level.
+Take a single domain or read input file and extract unique parent domains. 
+Filter results by domain level. 
+
+ Supports any format of url, with or without protocol, port, path, parameters.
 
 
 ## Quickstart
 
 ```
-> python3 generate-urls.py 10 > urls-10.txt
+> go run dsieve.go -i foo.bar.baz.tld 
+bar.baz.tld
+baz.tld
+tld
 
-> cat urls-10.txt 
-http://ae5.w6.txyt.jp/glqyo/xkjo
-http://i0.zkkic.vurtx.net/ru?j0acdi=6105&hn=2149
-http://jt757.vik4.com/dog7?pa70j=5582&obix=3863
-https://pnlfo5.kxd4.xt.jp/dn7/sstcj?znp=8960&rd=8720
-https://kaip.kqjzs4.jp/?opv451=3328&qi6ktj=2085
-https://rdh.wi96j.h1.y3zy.jp?x6y=849&y8=3859
-https://m3pnr6.rossw.hp.uk/fa2/x4nix/vprcz/ssp4?za1e=9946&fsdz1=3752
-https://ey.p3.uk/me/?szbh=931&g67=7544
-http://ecu2x.bobp.ief.ch/?piydi=131&dk52h7=4715
-http://dra.w12y9l.uduba.ozrhsy.ch/qqb/?ln=7615
+> go run dsieve.go -i http://foo.bar.baz.tld/a/b?q=1 -f 2
+baz.tld
 
-> go run dsieve.go -i urls-10.txt -fl 3
-jt757.vik4.com
-kaip.kqjzs4.jp
-ey.p3.uk
-
-> go run dsieve.go -i urls-10.txt -fl 3 -e
-w6.txyt.jp
-zkkic.vurtx.net
-jt757.vik4.com
-kxd4.xt.jp
-kaip.kqjzs4.jp
-h1.y3zy.jp
-rossw.hp.uk
-ey.p3.uk
-bobp.ief.ch
-uduba.ozrhsy.ch
+> go run dsieve.go -i http://foo.bar.baz.tld:443 -f 2:
+bar.baz.tld:443
+baz.tld:443
 ```
 
 ## Usage
 ```
 Usage of dsieve.go
-  -e    Extract level domains from subdomains
-  -fl int
-        Filter domain level, 1 being TLD (default 3)
+  -f string
+        Filter domain level. Use python slice notation to select range. 
+        Example input: foo.bar.baz.tld 
+          -f 3      bar.baz.tld 
+          -f 3:     bar.baz.tld, foo.bar.baz.tld
+          -f 2:4    baz.tld, bar.baz.tld
+          -f :3     tld, baz.tld
   -i string
-        Input file path (required)
+        Input url or domain
+  -if string
+        Input file path, one url/domain per line.
   -o string
-        Output file path (default "", no output file)
-```
+        Output file path, optional
 
-## Url generate
-Generate test data using `generate-urls.py`.
-```
-python3 generate-urls.py 10000 > urls-10000.txt
 ```
 
 
