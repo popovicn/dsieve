@@ -85,7 +85,7 @@ func parseUrl(rawUrl string, lMin, lMax int) []string {
         return domains
     }
 
-    if lMax == -1 {
+    if lMax == -1 || lMax > len(domainLevels) {
         lMax = len(domainLevels)
     }
     for i:=lMax-1; i>0 && i >= lMin; i-- {
