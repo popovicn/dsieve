@@ -81,12 +81,18 @@ func parseUrl(rawUrl string, lMin, lMax int) []string {
     }
 
     domainLevels := strings.Split(u.Host, ".")
+    if lMin > len(domainLevels) {
+        return domains
+    }
+
     if lMax == -1 {
         lMax = len(domainLevels)
     }
     for i:=lMax-1; i>0 && i >= lMin; i-- {
         domain := strings.Join(domainLevels[len(domainLevels)-i:], ".")
-        domains = append(domains, domain)
+        if domain != "" {
+            domains = append(domains, domain)
+        }
     }
     return domains
 }
